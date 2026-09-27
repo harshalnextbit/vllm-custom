@@ -25,7 +25,7 @@ def test_admin_load_model_success():
             "quantization": "none",
             "max_model_len": 2048,
             "gpu_memory_utilization": 0.8,
-            "enforce_eager": True
+            "enforce_eager": False
         })
         assert response.status_code == 200
         data = response.json()

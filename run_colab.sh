@@ -118,7 +118,7 @@ pip uninstall -y torchaudio || true
 if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 else
-    pip install "vllm>=0.6.0" fastapi "uvicorn[standard]" pydantic-settings transformers accelerate pyngrok
+    pip install "vllm>=0.7.3" fastapi "uvicorn[standard]" pydantic-settings "transformers>=4.49.0" "accelerate>=0.35.0" pyngrok
 fi
 pip uninstall -y torchaudio || true
 
@@ -136,11 +136,13 @@ QUANTIZATION=none
 DTYPE=auto
 MAX_MODEL_LEN=4096
 GPU_MEMORY_UTILIZATION=0.85
-ENFORCE_EAGER=true
+ENFORCE_EAGER=false
 TENSOR_PARALLEL_SIZE=1
 TRUST_REMOTE_CODE=true
 HF_TOKEN=
 CACHE_DIR=
+# Optional JSON map from model-family key to isolated Python interpreter.
+VLLM_RUNTIME_MAP='{}'
 
 ENABLE_FALLBACK_TRANSFORMERS_BACKEND=true
 ENABLE_PREFIX_CACHING=true
@@ -190,6 +192,50 @@ if [ "${CLOUDFLARE_TUNNEL_ENABLED:-true}" != "false" ]; then
 else
     echo "CLOUDFLARE_TUNNEL_ENABLED=false: Serving strictly on localhost (tunnel disabled)."
 fi
+
+# Stop a previous copy of this API cleanly before rebinding its configured port.
+# Restrict cleanup to this project's Uvicorn command so unrelated services survive.
+stop_existing_api() {
+    local target_port="${PORT:-8006}"
+    local cmdline pid args i
+    local pids=()
+
+    for cmdline in /proc/[0-9]*/cmdline; do
+        [ -r "$cmdline" ] || continue
+        pid="${cmdline#/proc/}"
+        pid="${pid%/cmdline}"
+        args="$(tr '\0' ' ' < "$cmdline" 2>/dev/null || true)"
+        if [[ "$args" == *"uvicorn app.main:app"* && "$args" == *"--port $target_port"* ]]; then
+            pids+=("$pid")
+        fi
+    done
+
+    if [ "${#pids[@]}" -eq 0 ]; then
+        return 0
+    fi
+
+    echo "Stopping existing vLLM API process(es) on port $target_port: ${pids[*]}"
+    kill -TERM "${pids[@]}" 2>/dev/null || true
+    for i in $(seq 1 30); do
+        local remaining=()
+        for pid in "${pids[@]}"; do
+            kill -0 "$pid" 2>/dev/null && remaining+=("$pid")
+        done
+        [ "${#remaining[@]}" -eq 0 ] && break
+        sleep 1
+    done
+
+    local remaining=()
+    for pid in "${pids[@]}"; do
+        kill -0 "$pid" 2>/dev/null && remaining+=("$pid")
+    done
+    if [ "${#remaining[@]}" -gt 0 ]; then
+        echo "API process(es) did not stop gracefully; forcing shutdown: ${remaining[*]}"
+        kill -KILL "${remaining[@]}" 2>/dev/null || true
+    fi
+}
+
+stop_existing_api
 
 # Run FastAPI vLLM Engine (manages the single live tunnel and outputs the active URL)
 exec python3 -m uvicorn app.main:app --app-dir "$(pwd)" --host "${HOST:-0.0.0.0}" --port "${PORT:-8006}"

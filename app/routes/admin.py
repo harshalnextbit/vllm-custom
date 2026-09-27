@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from app.engine import get_vllm_manager
+from app.catalog import catalog_payload
 from app.schemas.requests import LoadModelRequest
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -26,6 +27,9 @@ async def load_model(req: LoadModelRequest):
             enforce_eager=req.enforce_eager,
             hf_token=req.hf_token,
             dtype=req.dtype,
+            tensor_parallel_size=req.tensor_parallel_size,
+            trust_remote_code=req.trust_remote_code,
+            enable_prefix_caching=req.enable_prefix_caching,
         )
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -90,6 +94,7 @@ async def current_model():
             "is_loaded": vm.is_loaded(),
             "model_id": vm.model_id,
             "active_config": vm.active_config,
+            **vm.status_payload(),
         }
     )
 
@@ -108,3 +113,13 @@ async def unload_model():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=sanitize_error_detail(e)
         )
+
+@router.get("/status")
+async def model_status():
+    return JSONResponse(content=get_vllm_manager().status_payload())
+
+@router.get("/catalog")
+async def get_model_catalog():
+    vm = get_vllm_manager()
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content=catalog_payload(vm.model_id if vm.is_loaded() else None))

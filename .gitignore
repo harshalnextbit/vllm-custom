@@ -10,3 +10,13 @@ run_in_colab.txt
 run_colab.txt
 limitations.md
 SECURITY.md
+
+# Repository-local Python environments and caches
+venv/
+.venv/
+.runtimes/
+runtime-envs/
+logs/
+ENV/
+env/
+**/__pycache__/

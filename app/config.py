@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,18 +16,22 @@ class Settings(BaseSettings):
     DTYPE: str = "auto"
     MAX_MODEL_LEN: int = 4096
     GPU_MEMORY_UTILIZATION: float = 0.85
-    ENFORCE_EAGER: bool = True
+    ENFORCE_EAGER: bool = False
     TENSOR_PARALLEL_SIZE: int = 1
     TRUST_REMOTE_CODE: bool = True
     HF_TOKEN: Optional[str] = None
     CACHE_DIR: Optional[str] = None
+    LOG_DIR: str = "./logs"
+    # Optional per-architecture runtime interpreters, e.g. a newer vLLM
+    # environment for newly introduced model architectures.
+    VLLM_RUNTIME_MAP: Dict[str, str] = {}
 
     ENABLE_FALLBACK_TRANSFORMERS_BACKEND: bool = True
     ENABLE_PREFIX_CACHING: bool = True
     ALLOW_CPU_FALLBACK: bool = False
     AUTO_LOAD_ON_STARTUP: bool = False
 
-    DEFAULT_MAX_TOKENS: int = 512
+    DEFAULT_MAX_TOKENS: int = 160
     DEFAULT_TEMPERATURE: float = 0.7
     DEFAULT_TOP_P: float = 0.9
     DEFAULT_TOP_K: int = 50

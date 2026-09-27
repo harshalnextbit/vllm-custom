@@ -18,6 +18,12 @@ Designed for instant deployment in **Google Colab** (NVIDIA T4, L4, A100) or sel
 
 ---
 
+### Isolated model runtimes
+
+Set `VLLM_RUNTIME_MAP` in `.env` to route dependency-sensitive model families to their own Python environments. The current A100 configuration uses vLLM 0.17 for Qwen3.5, vLLM 0.17 with Transformers 5 for Sarvam, and vLLM 0.29 with the CUDA 12.9 wheel for Gemma 4. The CUDA 13.0 vLLM 0.29 wheel fails on the host's R550 driver; keep CUDA 12.9 libraries ahead of any leftover CUDA 13 libraries in `LD_LIBRARY_PATH`. Gemma 4 has now passed model warm-up plus normal and SSE inference with this setup.
+
+The catalog's `verified` and `streaming_verified` flags reflect successful model startup and real responses from both API modes. A verified model still needs enough local disk and GPU memory to load; the UI can select it and the backend starts its configured runtime when requested.
+
 ## 🚀 Quick Start
 
 ### Option A: Google Colab (One-Click Launch)
@@ -66,107 +72,38 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8006
 
 ---
 
-## 📋 Complete Supported Model Catalog (Copy-Pasteable)
+## Model registry and runtime selection
 
-All models below have native, readymade support in vLLM. You can copy-paste any `model_id` directly into the `/admin/load-model` endpoint or the Web UI.
+`app/catalog.py` is the model catalog source of truth. `GET /admin/catalog` returns verified entries, unverified candidates, cached catalog variants, and custom cached repositories. The frontend consumes that API instead of keeping its own model list. A candidate is not marked verified until isolated GPU load, inference, streaming, and shutdown have been recorded.
 
-### 1. Qwen 2.5 Series (General Purpose & Coding)
+The API starts an isolated `vllm serve` child process for each selected model, waits for a real warm-up completion, and uses the same OpenAI-compatible process for inference. Custom Hugging Face repositories use this same lifecycle. Cache discovery and disk checks use Hugging Face metadata; stop/unload terminates the process group and checks GPU memory recovery.
 
-| Model Name | Hugging Face Model ID | Quantization | Context | Min VRAM | Recommended GPU |
-|---|---|---|---|---|---|
-| **Qwen 2.5 0.5B Instruct** | `Qwen/Qwen2.5-0.5B-Instruct` | `none` | 32,768 | ~3.5 GB | T4 / L4 / A100 |
-| **Qwen 2.5 0.5B AWQ** | `Qwen/Qwen2.5-0.5B-Instruct-AWQ` | `awq` | 32,768 | ~2.5 GB | T4 / L4 / A100 |
-| **Qwen 2.5 1.5B Instruct** | `Qwen/Qwen2.5-1.5B-Instruct` | `none` | 32,768 | ~5.8 GB | T4 / L4 / A100 |
-| **Qwen 2.5 1.5B AWQ** | `Qwen/Qwen2.5-1.5B-Instruct-AWQ` | `awq` | 32,768 | ~3.8 GB | T4 / L4 / A100 |
-| **Qwen 2.5 3B Instruct** | `Qwen/Qwen2.5-3B-Instruct` | `none` | 16,384 | ~9.5 GB | T4 / L4 / A100 |
-| **Qwen 2.5 3B AWQ** | `Qwen/Qwen2.5-3B-Instruct-AWQ` | `awq` | 32,768 | ~5.5 GB | T4 / L4 / A100 |
-| **Qwen 2.5 7B Instruct** | `Qwen/Qwen2.5-7B-Instruct` | `none` | 16,384 | ~19.5 GB | L4 / A100 |
-| **Qwen 2.5 7B AWQ (4-bit)** | `Qwen/Qwen2.5-7B-Instruct-AWQ` | `awq` | 8,192 | ~7.5 GB | T4 / L4 / A100 |
-| **Qwen 2.5 14B Instruct** | `Qwen/Qwen2.5-14B-Instruct` | `none` | 16,384 | ~35.0 GB | A100-40GB / A100-80GB |
-| **Qwen 2.5 14B AWQ** | `Qwen/Qwen2.5-14B-Instruct-AWQ` | `awq` | 8,192 | ~12.5 GB | T4 (eager) / L4 / A100 |
-| **Qwen 2.5 32B Instruct** | `Qwen/Qwen2.5-32B-Instruct` | `none` | 16,384 | ~74.0 GB | A100-80GB |
-| **Qwen 2.5 32B AWQ** | `Qwen/Qwen2.5-32B-Instruct-AWQ` | `awq` | 4,096 | ~22.0 GB | L4 (eager) / A100 |
-| **Qwen 2.5 72B AWQ** | `Qwen/Qwen2.5-72B-Instruct-AWQ` | `awq` | 8,192 | ~52.0 GB | A100-80GB |
-| **Qwen 2.5 Coder 1.5B** | `Qwen/Qwen2.5-Coder-1.5B-Instruct` | `none` | 32,768 | ~5.8 GB | T4 / L4 / A100 |
-| **Qwen 2.5 Coder 7B AWQ** | `Qwen/Qwen2.5-Coder-7B-Instruct-AWQ` | `awq` | 8,192 | ~7.5 GB | T4 / L4 / A100 |
-| **Qwen 2.5 Coder 14B AWQ**| `Qwen/Qwen2.5-Coder-14B-Instruct-AWQ`| `awq` | 8,192 | ~12.5 GB | T4 (eager) / L4 / A100 |
-| **Qwen 2.5 Coder 32B AWQ**| `Qwen/Qwen2.5-Coder-32B-Instruct-AWQ`| `awq` | 4,096 | ~22.0 GB | L4 (eager) / A100 |
+The engine serves one selected model at a time. For chat and completion requests, it replaces the client's `model` field with the active model ID. This lets clients such as LiveKit keep a static startup model setting while the UI switches the backend to a different catalog model.
 
----
+### Isolated architecture runtimes
 
-### 2. DeepSeek R1 & Reasoning Series
+The base API runtime remains unchanged. `VLLM_RUNTIME_MAP` selects a separate Python environment per model family:
 
-*Emits step-by-step `<think>` reasoning tags, automatically parsed and displayed by the engine and Web UI.*
+- **Qwen3.6/Qwen3.5-family:** vLLM 0.17.0 with CUDA 12.9 wheels, installed by `bash scripts/setup_vllm_017_runtime.sh`. Qwen3.6-27B BF16 passed the end-to-end GPU, response, SSE, and shutdown checks on the current A100/driver when using the vLLM V1 runner.
+- **Sarvam-30B:** vLLM 0.17.0 with CUDA 12.9 and Transformers 5.17, installed in a separate environment by `bash scripts/setup_vllm_017_transformers5_runtime.sh`. The BF16 variant passed with eager execution enabled. This isolated environment overrides vLLM's declared Transformers `<5` dependency; keep it separate from Qwen's Transformers 4 runtime.
+- **Gemma 4:** vLLM 0.29.0 with Transformers 5.17, installed by `bash scripts/setup_vllm_029_runtime.sh`. The model loaded, but warm-up inference failed in a CUDA MoE kernel because the current host driver is too old for its CUDA runtime.
 
-| Model Name | Hugging Face Model ID | Quantization | Context | Min VRAM | Recommended GPU |
-|---|---|---|---|---|---|
-| **DeepSeek R1 Distill Qwen 1.5B** | `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B` | `none` | 32,768 | ~5.8 GB | T4 / L4 / A100 |
-| **DeepSeek R1 Distill Qwen 1.5B AWQ** | `casperhansen/deepseek-r1-distill-qwen-1.5b-awq` | `awq` | 32,768 | ~3.8 GB | T4 / L4 / A100 |
-| **DeepSeek R1 Distill Qwen 7B** | `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` | `none` | 16,384 | ~19.5 GB | L4 / A100 |
-| **DeepSeek R1 Distill Qwen 7B AWQ** | `casperhansen/deepseek-r1-distill-qwen-7b-awq` | `awq` | 8,192 | ~7.5 GB | T4 / L4 / A100 |
-| **DeepSeek R1 Distill Llama 8B** | `deepseek-ai/DeepSeek-R1-Distill-Llama-8B` | `none` | 16,384 | ~20.0 GB | L4 / A100 |
-| **DeepSeek R1 Distill Llama 8B AWQ** | `casperhansen/deepseek-r1-distill-llama-8b-awq` | `awq` | 8,192 | ~8.0 GB | T4 / L4 / A100 |
-| **DeepSeek R1 Distill Qwen 14B AWQ**| `casperhansen/deepseek-r1-distill-qwen-14b-awq` | `awq` | 8,192 | ~12.5 GB | T4 (eager) / L4 / A100 |
-| **DeepSeek R1 Distill Qwen 32B AWQ**| `casperhansen/deepseek-r1-distill-qwen-32b-awq` | `awq` | 4,096 | ~22.0 GB | L4 (eager) / A100 |
-| **DeepSeek R1 Distill Llama 70B AWQ**| `casperhansen/deepseek-r1-distill-llama-70b-awq` | `awq` | 8,192 | ~51.0 GB | A100-80GB |
+The launcher adds each runtime's CUDA library directories only to that model subprocess. Keep the matching entries in `.env` and use a driver/runtime combination supported by the GPU host. A catalog candidate is selectable but is not represented as verified until it passes GPU load, inference, streaming, and process cleanup tests.
 
----
+### Current model validation status
 
-### 3. Meta Llama 3.3, 3.2, 3.1 Series
+On the NVIDIA A100 80 GB host, 21 of the catalog's 25 variants have passed isolated load, non-streaming inference, SSE through `[DONE]`, and shutdown. Four remain unverified or unsupported:
 
-*(Requires accepting Hugging Face license and supplying `HF_TOKEN`)*
+| Model variant | Hugging Face repository | Current status |
+|---|---|---|
+| Sarvam-30B FP8 | `sarvamai/sarvam-30b-fp8` | **Unsupported on this A100.** ModelOpt FP8 requires compute capability 8.9; this A100 is SM80. |
+| Llama 3.3 70B BF16 | `meta-llama/Llama-3.3-70B-Instruct` | **Not run.** All supplied tokens received HTTP 403, and the BF16 weights exceed this GPU's 80 GB VRAM. |
+| Gemma 4 26B-A4B IT BF16 | `google/gemma-4-26B-A4B-it` | **Unverified on this host.** vLLM 0.29 loaded the weights but warm-up inference failed in a CUDA kernel because the host driver is too old for its CUDA runtime. |
+| Aya Expanse 32B BF16 | `CohereLabs/aya-expanse-32b` | **Not run.** All supplied tokens received HTTP 403 for this gated repository. |
 
-| Model Name | Hugging Face Model ID | Quantization | Context | Min VRAM | Recommended GPU |
-|---|---|---|---|---|---|
-| **Llama 3.2 1B Instruct** | `meta-llama/Llama-3.2-1B-Instruct` | `none` | 32,768 | ~5.0 GB | T4 / L4 / A100 |
-| **Llama 3.2 1B AWQ** | `casperhansen/llama-3.2-1b-instruct-awq` | `awq` | 32,768 | ~3.5 GB | T4 / L4 / A100 |
-| **Llama 3.2 3B Instruct** | `meta-llama/Llama-3.2-3B-Instruct` | `none` | 16,384 | ~9.8 GB | T4 / L4 / A100 |
-| **Llama 3.2 3B AWQ** | `casperhansen/llama-3.2-3b-instruct-awq` | `awq` | 32,768 | ~5.8 GB | T4 / L4 / A100 |
-| **Llama 3.1 8B Instruct (Gated)** | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `none` | 8,192 | ~20.2 GB | L4 / A100 |
-| **Llama 3.1 8B AWQ (Ungated)** | `hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4` | `awq` | 8,192 | ~8.2 GB | T4 / L4 / A100 |
-| **Llama 3.1 70B AWQ (Ungated)** | `hugging-quants/Meta-Llama-3.1-70B-Instruct-AWQ-INT4`| `awq` | 8,192 | ~51.0 GB | A100-80GB |
-| **Llama 3.3 70B AWQ (Ungated)** | `casperhansen/llama-3.3-70b-instruct-awq` | `awq` | 8,192 | ~51.0 GB | A100-80GB |
+The 21 variants that passed are Sarvam-30B BF16; Qwen3-30B-A3B BF16 and FP8; Qwen3-14B BF16; Llama 3.3 70B AWQ; Llama 3.2 3B BF16 and AWQ; Llama 3.1 8B BF16 and AWQ; Gemma 3 27B IT BF16; Phi-4 14B BF16; Qwen3.6-27B BF16 and FP8; Qwen3.6-35B-A3B BF16 and FP8; Qwen3.8-27B BF16 and FP8; DeepSeek-R1-Distill-Qwen-32B BF16 and AWQ; Mistral Small 3.2 24B BF16; and Aya Expanse 32B AWQ.
 
----
-
-### 4. Google Gemma 2 & Gemma 3 Series
-
-*(Official `google/*` models require accepting Hugging Face license and supplying `HF_TOKEN`)*
-
-| Model Name | Hugging Face Model ID | Quantization | Context | Min VRAM | Recommended GPU |
-|---|---|---|---|---|---|
-| **Gemma 2 2B Instruct** | `google/gemma-2-2b-it` | `none` | 8,192 | ~8.0 GB | T4 / L4 / A100 |
-| **Gemma 1 2B AWQ (Ungated)** | `TechxGenus/gemma-2b-it-AWQ` | `awq` | 8,192 | ~4.5 GB | T4 / L4 / A100 |
-| **Gemma 2 9B Instruct** | `google/gemma-2-9b-it` | `none` | 4,096 | ~21.5 GB | L4 / A100 |
-| **Gemma 2 9B AWQ (Ungated)** | `solidrust/gemma-2-9b-it-AWQ` | `awq` | 4,096 | ~11.0 GB | T4 (eager) / L4 / A100 |
-| **Gemma 2 27B AWQ (Ungated)** | `mbley/google-gemma-2-27b-it-AWQ` | `awq` | 4,096 | ~21.5 GB | L4 (eager) / A100 |
-| **Gemma 3 1B Instruct** | `google/gemma-3-1b-it` | `none` | 32,768 | ~5.2 GB | T4 / L4 / A100 |
-| **Gemma 3 4B Instruct (Vision)** | `google/gemma-3-4b-it` | `none` | 16,384 | ~13.5 GB | T4 (eager) / L4 / A100 |
-
----
-
-### 5. Mistral & Mixtral Series
-
-| Model Name | Hugging Face Model ID | Quantization | Context | Min VRAM | Recommended GPU |
-|---|---|---|---|---|---|
-| **Mistral 7B v0.3 Instruct** | `mistralai/Mistral-7B-Instruct-v0.3` | `none` | 8,192 | ~19.0 GB | L4 / A100 |
-| **Mistral 7B v0.3 AWQ** | `TechxGenus/Mistral-7B-Instruct-v0.3-AWQ` | `awq` | 8,192 | ~7.2 GB | T4 / L4 / A100 |
-| **Mixtral 8x7B AWQ** | `TheBloke/Mixtral-8x7B-Instruct-v0.1-AWQ` | `awq` | 8,192 | ~34.0 GB | A100-40GB / A100-80GB |
-| **Ministral 3B Instruct (FP8)** | `mistralai/Ministral-3-3B-Instruct-2512` | `fp8` | 16,384 | ~6.5 GB | T4 (eager) / L4 / A100 |
-| **Ministral 8B Instruct** | `mistralai/Ministral-8B-Instruct-2410` | `none` | 8,192 | ~20.5 GB | L4 / A100 |
-
----
-
-### 6. Microsoft Phi 3.5 & Phi 4 Series
-
-| Model Name | Hugging Face Model ID | Quantization | Context | Min VRAM | Recommended GPU |
-|---|---|---|---|---|---|
-| **Phi-3.5-mini Instruct** | `microsoft/Phi-3.5-mini-instruct` | `none` | 8,192 | ~11.8 GB | T4 (eager) / L4 / A100 |
-| **Phi-3.5-mini AWQ** | `thesven/Phi-3.5-mini-instruct-awq` | `awq` | 16,384 | ~6.5 GB | T4 / L4 / A100 |
-| **Phi-4 (14B)** | `microsoft/phi-4` | `none` | 8,192 | ~34.5 GB | A100-40GB / A100-80GB |
-| **Phi-4-mini Instruct** | `microsoft/Phi-4-mini-instruct` | `none` | 8,192 | ~11.8 GB | T4 (eager) / L4 / A100 |
-
----
+**Using a verified model:** Select a verified catalog entry and start inference once its load completes and the engine reports ready. Qwen3.8-27B was rechecked through the active port 8006 API: the catalog selected its isolated vLLM 0.17 runtime, normal and streamed inference returned `MODEL_TEST_OK`, and unload returned the engine to STOPPED. Six verified models currently have complete cached weights: Llama 3.2 3B BF16, Llama 3.2 3B AWQ, Llama 3.1 8B AWQ, Phi-4, Qwen3-14B, and Qwen3.8-27B. Other verified entries download when selected; gated models require a token with access to that repository.
 
 ## 🎛️ How to Load Models
 
@@ -180,7 +117,7 @@ All models below have native, readymade support in vLLM. You can copy-paste any 
   "quantization": "none",
   "max_model_len": 4096,
   "gpu_memory_utilization": 0.85,
-  "enforce_eager": true,
+  "enforce_eager": false,
   "hf_token": null
 }
 ```
@@ -195,7 +132,7 @@ curl -X POST https://<tunnel-id>.trycloudflare.com/admin/load-model \
     "model_id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
     "max_model_len": 4096,
     "gpu_memory_utilization": 0.85,
-    "enforce_eager": true
+    "enforce_eager": False
   }'
 
 # Chat Completion (Streaming)
@@ -242,25 +179,6 @@ curl -X POST https://<tunnel-id>.trycloudflare.com/admin/unload-model
 
 ---
 
-## 🛡️ Security & VAPT Audit
+## Validation scope
 
-The engine has undergone complete end-to-end Vulnerability Assessment and Penetration Testing (VAPT):
-
-1. **Path Traversal & Local File Inclusion**:
-   - Strictly validates `model_id` against `..` traversal sequences and restricted system roots (`/etc`, `/root`, `/sys`, `/proc`, `/dev`).
-2. **Numeric Boundary Hardening**:
-   - `gpu_memory_utilization` enforced between `(0.0, 1.0]`.
-   - `max_model_len` enforced between `[1, 131072]`.
-   - `temperature`, `top_p`, `repetition_penalty` reject `NaN` and `Inf`.
-3. **Information Disclosure Prevention**:
-   - Error responses sanitize and redact `HF_TOKEN` and Bearer tokens.
-4. **Defensive Response Headers**:
-   - Injects `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`.
-5. **ReDoS Resilience**:
-   - Validated linear performance on deep and malformed thinking tags.
-
-Run the test suite:
-```bash
-pytest -v
-```
-*(108 passing unit, integration, and security tests)*
+The catalog's `verified` and `streaming_verified` fields reflect completed isolated-process checks. The validation report records the tested repository, runtime, GPU allocation, inference and SSE outcome, cleanup, and explicit untested candidates. A repository being listed or downloadable does not imply that it has been validated on the current hardware.

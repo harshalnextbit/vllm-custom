@@ -38,6 +38,16 @@ export const CATEGORIZED_MODELS = [
     ]
   },
   {
+    category: "Qwen 3 / 3.6 / 3.8",
+    models: [
+      { id: "Qwen/Qwen3-14B-Instruct", name: "Qwen3-14B", quant: "none", maxLen: 16384, vram: "~35.0 GB", tier: "A100-40GB / 80GB" },
+      { id: "Qwen/Qwen3-30B-A3B-Instruct", name: "Qwen3-30B-A3B", quant: "none", maxLen: 16384, vram: "~70.0 GB", tier: "A100-80GB" },
+      { id: "Qwen/Qwen3.6-27B-Instruct", name: "Qwen3.6-27B", quant: "none", maxLen: 16384, vram: "~65.0 GB", tier: "A100-80GB" },
+      { id: "Qwen/Qwen3.6-35B-A3B-Instruct", name: "Qwen3.6-35B-A3B", quant: "none", maxLen: 16384, vram: "~80.0 GB", tier: "A100-80GB" },
+      { id: "Qwen/Qwen3.8-27B-Instruct", name: "Qwen3.8-27B", quant: "none", maxLen: 16384, vram: "~65.0 GB", tier: "A100-80GB" },
+    ]
+  },
+  {
     category: "Qwen 2.5 Coder (Programming)",
     models: [
       { id: "Qwen/Qwen2.5-Coder-1.5B-Instruct", name: "Qwen 2.5 Coder 1.5B Instruct", quant: "none", maxLen: 32768, vram: "~5.8 GB", tier: "T4 / L4 / A100" },
@@ -56,6 +66,7 @@ export const CATEGORIZED_MODELS = [
       { id: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B", name: "DeepSeek R1 Distill Llama 8B", quant: "none", maxLen: 16384, vram: "~20.0 GB", tier: "L4 / A100", isThinking: true },
       { id: "casperhansen/deepseek-r1-distill-llama-8b-awq", name: "DeepSeek R1 Distill Llama 8B AWQ", quant: "awq", maxLen: 8192, vram: "~8.0 GB", tier: "T4 / L4 / A100", isThinking: true },
       { id: "casperhansen/deepseek-r1-distill-qwen-14b-awq", name: "DeepSeek R1 Distill Qwen 14B AWQ", quant: "awq", maxLen: 8192, vram: "~12.5 GB", tier: "T4 (eager) / L4 / A100", isThinking: true },
+      { id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B", name: "DeepSeek-R1-Distill-Qwen-32B", quant: "none", maxLen: 16384, vram: "~74.0 GB", tier: "A100-80GB", isThinking: true },
       { id: "casperhansen/deepseek-r1-distill-qwen-32b-awq", name: "DeepSeek R1 Distill Qwen 32B AWQ", quant: "awq", maxLen: 4096, vram: "~22.0 GB", tier: "L4 (eager) / A100", isThinking: true },
       { id: "casperhansen/deepseek-r1-distill-llama-70b-awq", name: "DeepSeek R1 Distill Llama 70B AWQ", quant: "awq", maxLen: 8192, vram: "~51.0 GB", tier: "A100-80GB", isThinking: true },
     ]
@@ -70,11 +81,12 @@ export const CATEGORIZED_MODELS = [
       { id: "meta-llama/Meta-Llama-3.1-8B-Instruct", name: "Llama 3.1 8B Instruct", quant: "none", maxLen: 8192, vram: "~20.2 GB", tier: "L4 / A100", gated: true },
       { id: "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4", name: "Llama 3.1 8B AWQ (Ungated)", quant: "awq", maxLen: 8192, vram: "~8.2 GB", tier: "T4 / L4 / A100" },
       { id: "hugging-quants/Meta-Llama-3.1-70B-Instruct-AWQ-INT4", name: "Llama 3.1 70B AWQ (Ungated)", quant: "awq", maxLen: 8192, vram: "~51.0 GB", tier: "A100-80GB" },
+      { id: "meta-llama/Llama-3.3-70B-Instruct", name: "Llama 3.3 70B", quant: "none", maxLen: 8192, vram: "~140.0 GB", tier: "Multiple A100s", gated: true },
       { id: "casperhansen/llama-3.3-70b-instruct-awq", name: "Llama 3.3 70B AWQ (Ungated)", quant: "awq", maxLen: 8192, vram: "~51.0 GB", tier: "A100-80GB" },
     ]
   },
   {
-    category: "Google Gemma 2 & Gemma 3",
+    category: "Google Gemma 2 / 3 / 4",
     models: [
       { id: "google/gemma-2-2b-it", name: "Gemma 2 2B Instruct", quant: "none", maxLen: 8192, vram: "~8.0 GB", tier: "T4 / L4 / A100", gated: true },
       { id: "TechxGenus/gemma-2b-it-AWQ", name: "Gemma 1 2B AWQ (Ungated)", quant: "awq", maxLen: 8192, vram: "~4.5 GB", tier: "T4 / L4 / A100" },
@@ -83,6 +95,8 @@ export const CATEGORIZED_MODELS = [
       { id: "mbley/google-gemma-2-27b-it-AWQ", name: "Gemma 2 27B AWQ (Ungated)", quant: "awq", maxLen: 4096, vram: "~21.5 GB", tier: "L4 (eager) / A100" },
       { id: "google/gemma-3-1b-it", name: "Gemma 3 1B Instruct", quant: "none", maxLen: 32768, vram: "~5.2 GB", tier: "T4 / L4 / A100", gated: true },
       { id: "google/gemma-3-4b-it", name: "Gemma 3 4B Instruct (Vision)", quant: "none", maxLen: 16384, vram: "~13.5 GB", tier: "T4 (eager) / L4 / A100", gated: true, multimodal: true },
+      { id: "google/gemma-3-27b-it", name: "Gemma 3 27B IT", quant: "none", maxLen: 8192, vram: "~65.0 GB", tier: "A100-80GB", gated: true, multimodal: true },
+      { id: "google/gemma-4-26b-a4b-it", name: "Gemma 4 26B-A4B-IT", quant: "none", maxLen: 8192, vram: "~60.0 GB", tier: "A100-80GB", gated: true },
     ]
   },
   {
@@ -93,6 +107,7 @@ export const CATEGORIZED_MODELS = [
       { id: "TheBloke/Mixtral-8x7B-Instruct-v0.1-AWQ", name: "Mixtral 8x7B AWQ", quant: "awq", maxLen: 8192, vram: "~34.0 GB", tier: "A100-40GB / 80GB" },
       { id: "mistralai/Ministral-3-3B-Instruct-2512", name: "Ministral 3 3B Instruct (FP8)", quant: "fp8", maxLen: 16384, vram: "~6.5 GB", tier: "T4 (eager) / L4 / A100" },
       { id: "mistralai/Ministral-8B-Instruct-2410", name: "Ministral 8B Instruct", quant: "none", maxLen: 8192, vram: "~20.5 GB", tier: "L4 / A100" },
+      { id: "mistralai/Mistral-Small-3.2-24B", name: "Mistral Small 3.2 24B", quant: "none", maxLen: 16384, vram: "~55.0 GB", tier: "A100-80GB" },
     ]
   },
   {
@@ -102,6 +117,13 @@ export const CATEGORIZED_MODELS = [
       { id: "thesven/Phi-3.5-mini-instruct-awq", name: "Phi-3.5-mini AWQ (4-bit)", quant: "awq", maxLen: 16384, vram: "~6.5 GB", tier: "T4 / L4 / A100" },
       { id: "microsoft/phi-4", name: "Phi-4 (14B)", quant: "none", maxLen: 8192, vram: "~34.5 GB", tier: "A100-40GB / 80GB" },
       { id: "microsoft/Phi-4-mini-instruct", name: "Phi-4-mini Instruct", quant: "none", maxLen: 8192, vram: "~11.8 GB", tier: "T4 (eager) / L4 / A100" },
+    ]
+  },
+  {
+    category: "Other Supported Models",
+    models: [
+      { id: "sarvamai/Sarvam-30B", name: "Sarvam-30B", quant: "none", maxLen: 8192, vram: "~70.0 GB", tier: "A100-80GB" },
+      { id: "CohereForAI/aya-expanse-32b", name: "Aya Expanse 32B", quant: "none", maxLen: 8192, vram: "~74.0 GB", tier: "A100-80GB" },
     ]
   }
 ];

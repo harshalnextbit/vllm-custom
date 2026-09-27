@@ -92,6 +92,9 @@ class LoadModelRequest(BaseModel):
     gpu_memory_utilization: Optional[float] = Field(None, gt=0.0, le=1.0)
     enforce_eager: Optional[bool] = None
     hf_token: Optional[str] = None
+    tensor_parallel_size: Optional[int] = Field(None, ge=1, le=16)
+    trust_remote_code: Optional[bool] = None
+    enable_prefix_caching: Optional[bool] = None
 
     @field_validator("dtype")
     @classmethod

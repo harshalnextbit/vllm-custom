@@ -60,10 +60,6 @@ async def health():
                 vram_allocated = real_used
             elif process_allocated > 0:
                 vram_allocated = process_allocated
-            elif vm.is_loaded() and vram_total:
-                # vLLM pre-allocates weights & KV cache based on gpu_memory_utilization
-                util = vm.active_config.get("gpu_memory_utilization", 0.85) if vm.active_config else 0.85
-                vram_allocated = round(vram_total * float(util), 2)
             else:
                 vram_allocated = process_allocated
         except Exception:
@@ -72,9 +68,10 @@ async def health():
     if vram_total is not None and vram_allocated is not None:
         vram_free_gb = max(round(vram_total - vram_allocated, 2), 0.0)
 
-    if vm.is_loading:
-        status_text = "LOADING"
-        loaded_model = vm.loading_model_id
+    state = vm.status
+    if state in ("STARTING", "WARMING_UP", "STOPPING"):
+        status_text = state
+        loaded_model = vm.model_id
     elif vm.is_loaded():
         status_text = "OK"
         loaded_model = vm.model_id
@@ -86,8 +83,8 @@ async def health():
                 model_weights_gb = weights
                 kv_cache_paged_gb = max(round(vram_allocated - weights, 2), 0.0)
     else:
-        status_text = "READY_NO_MODEL"
-        loaded_model = None
+        status_text = "FAILED" if state == "FAILED" else "READY_NO_MODEL"
+        loaded_model = vm.model_id if state == "FAILED" else None
 
     settings = get_settings()
     return JSONResponse(content={
@@ -102,4 +99,8 @@ async def health():
         "vram_free_gb": vram_free_gb,
         "default_enable_thinking": settings.DEFAULT_ENABLE_THINKING,
         "tunnel_url": get_cloudflare_url(),
+        "model_status": vm.status,
+        "model_error": vm.error,
+        "model_pid": vm.process.pid if vm.process and vm.process.returncode is None else None,
+        "model_port": vm.port,
     })
