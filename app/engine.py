@@ -156,7 +156,16 @@ class VLLMManager:
                     "--dtype", str(dtype), "--max-model-len", str(max_model_len),
                     "--gpu-memory-utilization", str(gpu_memory_utilization),
                     "--tensor-parallel-size", str(tensor_parallel_size),
-                    "--served-model-name", model_id]
+                    "--served-model-name", model_id,
+                    "--trust-request-chat-template"]
+            # Stelterlab's Mistral Small 3.2 FP8 checkpoint is stored in
+            # Mistral's consolidated format and uses the Mistral3 config. The
+            # generic HF loader can resolve its text config as MistralForCausalLM
+            # and then fails on the checkpoint's vision/projector tensors.
+            if model_id.casefold() == "stelterlab/mistral-small-3.2-24b-instruct-2506-fp8":
+                args += ["--tokenizer-mode", "mistral",
+                         "--config-format", "mistral",
+                         "--load-format", "mistral"]
             if quantization and quantization.lower() not in ("none", "auto"):
                 args += ["--quantization", quantization.lower()]
             if enforce_eager:

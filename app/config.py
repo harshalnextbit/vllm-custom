@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     DEFAULT_TOP_P: float = 0.9
     DEFAULT_TOP_K: int = 50
     DEFAULT_REPETITION_PENALTY: float = 1.05
-    DEFAULT_ENABLE_THINKING: bool = True
+    DEFAULT_ENABLE_THINKING: bool = False
 
     CLOUDFLARE_TUNNEL_ENABLED: bool = True
     CLOUDFLARE_TUNNEL_TOKEN: Optional[str] = None

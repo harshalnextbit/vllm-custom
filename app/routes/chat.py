@@ -27,8 +27,17 @@ async def chat_completions(req: ChatCompletionRequest):
     # standard completion parameters. Its model chat template controls reasoning.
     requested_thinking = req.resolved_enable_thinking()
     enable_thinking = get_settings().DEFAULT_ENABLE_THINKING if requested_thinking is None else requested_thinking
-    if "qwen3" in (vm.model_id or "").casefold():
+    model_id = (vm.model_id or "").casefold()
+    if "sarvam" in model_id:
+        enable_thinking = False
+    if any(name in model_id for name in ("qwen", "deepseek", "sarvam")):
         payload.setdefault("chat_template_kwargs", {})["enable_thinking"] = enable_thinking
+        # Sarvam's bundled chat template supports enable_thinking and adds the
+        # <|nothink|> marker to the user turn when it is disabled. Qwen and
+        # DeepSeek use the local override below for their non-thinking format.
+        if not enable_thinking and ("qwen" in model_id or "deepseek" in model_id):
+            with open("/home/jovyan/template.txt", "r") as f:
+                payload["chat_template"] = f.read().strip()
     if req.max_tokens is None:
         payload["max_tokens"] = get_settings().DEFAULT_MAX_TOKENS
     for key in ("enable_thinking", "thinking", "thinking_budget", "do_sample"):
