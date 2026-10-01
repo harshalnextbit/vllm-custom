@@ -42,6 +42,7 @@ class VLLMManager:
         self.started_at: float | None = None
         self.port: int | None = None
         self.log_path: str | None = None
+        self.gpu_free_before_start: int | None = None
 
     @classmethod
     def reset(cls):
@@ -211,6 +212,11 @@ class VLLMManager:
                 env["HUGGING_FACE_HUB_TOKEN"] = token
             try:
                 await self._check_disk_space(model_id, token)
+                if torch.cuda.is_available():
+                    try:
+                        self.gpu_free_before_start, _ = torch.cuda.mem_get_info(0)
+                    except Exception:
+                        self.gpu_free_before_start = None
                 with open(self.log_path, "ab", buffering=0) as log:
                     self.process = await asyncio.create_subprocess_exec(
                         *args, stdout=log, stderr=log, env=env,
@@ -306,12 +312,7 @@ class VLLMManager:
     async def _stop_process(self) -> None:
         proc = self.process
         port = self.port
-        free_before_stop = None
-        if proc is not None and torch.cuda.is_available():
-            try:
-                free_before_stop, _ = torch.cuda.mem_get_info(0)
-            except Exception:
-                pass
+        free_before_stop = self.gpu_free_before_start
         if proc is not None:
             try:
                 os.killpg(proc.pid, signal.SIGTERM)
@@ -345,6 +346,7 @@ class VLLMManager:
         self.process = None
         self.port = None
         await self._wait_gpu_release(free_before_stop, timeout=45)
+        self.gpu_free_before_start = None
         if port is not None:
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
@@ -361,9 +363,11 @@ class VLLMManager:
             await asyncio.sleep(1)
             try:
                 free, _ = torch.cuda.mem_get_info(0)
-                # A live vLLM process must have held at least some device memory.
-                # Require the device's free memory to recover after that process exits.
-                if free >= free_before_stop + 256 * 1024 * 1024:
+                # Compare against the free memory from before launch. Comparing
+                # against memory immediately before shutdown falsely reports a
+                # leak when startup failed before allocating any GPU memory.
+                # Allow small background allocations to vary by 256 MiB.
+                if free >= free_before_stop - 256 * 1024 * 1024:
                     return
             except Exception:
                 return

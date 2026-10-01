@@ -128,7 +128,10 @@ class LoadModelRequest(BaseModel):
         clean = v.strip().lower()
         if clean in ("", "none"):
             return "none"
-        allowed = {"awq", "gptq", "squeezellm", "bitsandbytes", "fp8"}
+        allowed = {
+            "awq", "gptq", "squeezellm", "bitsandbytes", "fp8",
+            "int8_per_channel_weight_only",
+        }
         if clean not in allowed:
             raise ValueError(f"Invalid quantization '{v}'. Allowed: {sorted(allowed)} or 'none'")
         return clean

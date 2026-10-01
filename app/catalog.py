@@ -19,6 +19,7 @@ def _variant(name: str, hf_id: str, *, quantization: str | None = None,
              reason: str | None = None,
              streaming_verified: bool = False,
              recommended_max_model_len: int | None = None,
+             recommended_gpu_memory_utilization: float = 0.90,
              language_model_only: bool = False,
              enforce_eager: bool = False) -> dict[str, Any]:
     return {
@@ -30,7 +31,7 @@ def _variant(name: str, hf_id: str, *, quantization: str | None = None,
         "recommended_vllm_quantization": quantization,
         "recommended_vllm_settings": {
             "max_model_len": recommended_max_model_len or min(max_context, 8192),
-            "gpu_memory_utilization": 0.90,
+            "gpu_memory_utilization": recommended_gpu_memory_utilization,
             "enforce_eager": enforce_eager,
             "enable_prefix_caching": True,
             "tensor_parallel_size": 1,
@@ -40,7 +41,7 @@ def _variant(name: str, hf_id: str, *, quantization: str | None = None,
         "max_context": max_context,
         "max_output_tokens": 160,
         "tensor_parallel_size": 1,
-        "gpu_memory_utilization": 0.90,
+        "gpu_memory_utilization": recommended_gpu_memory_utilization,
         "enforce_eager": enforce_eager,
         "prefix_caching": True,
         "trust_remote_code": trust_remote_code,
@@ -114,7 +115,18 @@ SUPPORTED_MODELS: list[dict[str, Any]] = [
      "variants": [_variant("BF16", "google/gemma-4-26B-A4B-it", dtype="bfloat16",
                            status="verified", streaming_verified=True,
                            recommended_max_model_len=4096,
-                           reason="Verified on A100 with vLLM 0.29.0 CUDA 12.9 wheel; normal and SSE inference passed. The CUDA 13.0 wheel is incompatible with the host's R550 driver.") ]},
+                           recommended_gpu_memory_utilization=0.82,
+                           reason="Verified on A100 with vLLM 0.29.0 CUDA 12.9 wheel; normal and SSE inference passed. The CUDA 13.0 wheel is incompatible with the host's R550 driver."),
+                  _variant("FP8 Dynamic", "RedHatAI/gemma-4-26B-A4B-it-FP8-dynamic", dtype="bfloat16",
+                           status="candidate", recommended_max_model_len=4096,
+                           reason="Selectable, but exact FP8 inference is not verified on this A100/R550 host: vLLM 0.29.0 crashes in cuModuleLoad, and SGLang 0.5.19 cannot run the FP8 MoE experts on SM80. Use the verified BF16 or INT8 per-channel variant for inference."),
+                  _variant("INT8 per-channel (A100)", "google/gemma-4-26B-A4B-it",
+                           quantization="int8_per_channel_weight_only", dtype="bfloat16",
+                           status="verified", streaming_verified=True,
+                           recommended_max_model_len=4096,
+                           recommended_gpu_memory_utilization=0.82,
+                           enforce_eager=True,
+                           reason="Verified on A100 80 GB with vLLM 0.29.0 CUDA 12.9 using the current Gemma 4 recipe's int8_per_channel_weight_only method. Normal, SSE, and Cloudflare-routed marker inference passed; loaded weights used 27.36 GiB. Online quantization, no separate INT8 checkpoint.") ]},
     {"display_name": "DeepSeek-R1-Distill-Qwen-32B", "model_family": "deepseek", "max_context": 8192,
      "variants": [_variant("BF16", "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B", dtype="bfloat16", status="verified",
                            streaming_verified=True, reason="Verified on A100 with vLLM 0.15.1; reasoning model returned the requested marker with max_tokens=160."),
@@ -141,11 +153,13 @@ def _estimate_model_weights_gb(model_id: str | None, quantization: str | None = 
     mid = model_id.lower()
     quant = (quantization or "").lower()
     is_4bit = "awq" in quant or "gptq" in quant or "4bit" in quant or "awq" in mid
+    is_int8 = "int8" in quant
 
     match = re.search(r"(\d+(?:\.\d+)?)\s*b", mid)
     if match:
         params = float(match.group(1))
-        bytes_per_param = 0.58 if is_4bit else 2.05
+        is_fp8 = "fp8" in mid or quant == "fp8"
+        bytes_per_param = 0.58 if is_4bit else 1.15 if is_int8 else 1.05 if is_fp8 else 2.05
         return round((params * 1e9 * bytes_per_param) / (1024 ** 3), 2)
 
     return 3.10
